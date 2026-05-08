@@ -113,26 +113,47 @@ Locked out
 
 ---
 
-## Verified Output
+## Verified Output — Before & After
 
-After applying the systemd override, `ssh.service` correctly binds to both the Tailscale IP and the local network IP on startup:
+### Before (broken — race condition)
+
+`sshd` starts at boot before `tailscale0` is assigned an IP. It silently skips the Tailscale interface and only listens on the LAN. If you are connecting remotely over Tailscale, you are locked out.
+
+```
+● ssh.service - OpenBSD Secure Shell server
+
+     Loaded: loaded (/usr/lib/systemd/system/ssh.service; enabled; preset: enabled)
+     Active: active (running) since Fri 2026-05-08 13:33:59 UTC; 5h 44min ago
+    Process: ExecStartPre=/usr/sbin/sshd -t (code=exited, status=0/SUCCESS)
+   Main PID: (sshd)
+     Memory: 260.0K (peak: 2.4M swap: 1.0M swap peak: 1.0M)
+     CGroup: /system.slice/ssh.service
+             └─ "sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups"
+
+May 08 13:33:59 taskmanager systemd[1]: Starting ssh.service - OpenBSD Secure Shell server...
+May 08 13:33:59 taskmanager sshd: error: Bind to port 22 on <tailscale-ip> failed: Cannot assign requested address
+May 08 13:33:59 taskmanager sshd: Server listening on <local-ip> port 22.
+May 08 13:33:59 taskmanager systemd[1]: Started ssh.service - OpenBSD Secure Shell server.
+```
+
+> Note: systemd reports `Active: active (running)` even though the Tailscale bind failed — the service is not considered failed because it still has one working listener. This makes the bug easy to miss.
+
+---
+
+### After (fixed — systemd override applied)
+
+Both interfaces are bound successfully on startup:
 
 ```
 root@taskmanager:/# systemctl restart ssh
-
-root@taskmanager:/# systemctl status ssh
 
 ● ssh.service - OpenBSD Secure Shell server
 
      Loaded: loaded (/usr/lib/systemd/system/ssh.service; enabled; preset: enabled)
      Active: active (running) since Fri 2026-05-08 19:19:12 UTC; 2s ago
-       Docs: man:sshd(8)
-             man:sshd_config(5)
     Process: ExecStartPre=/usr/sbin/sshd -t (code=exited, status=0/SUCCESS)
    Main PID: (sshd)
-      Tasks: 1 (limit: 14118)
      Memory: 1.7M (peak: 2.0M)
-        CPU: 26ms
      CGroup: /system.slice/ssh.service
              └─ "sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups"
 
@@ -142,7 +163,7 @@ May 08 19:19:12 taskmanager sshd: Server listening on <local-ip> port 22.
 May 08 19:19:12 taskmanager systemd[1]: Started ssh.service - OpenBSD Secure Shell server.
 ```
 
-The key lines are the two `Server listening on` entries — one for the Tailscale IP and one for the LAN IP. Before the fix, only the LAN IP appeared (or `sshd` failed to start entirely).
+The `error: Bind to port 22 ... failed` line is gone and both `Server listening on` lines are present.
 
 ---
 
