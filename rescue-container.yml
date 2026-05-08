@@ -1,0 +1,9 @@
+services:
+  rescue:
+    image: ubuntu:latest
+    container_name: rescue_ssh
+    network_mode: host
+    pid: host
+    privileged: true
+    tty: true
+    stdin_open: true
