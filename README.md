@@ -113,6 +113,39 @@ Locked out
 
 ---
 
+## Verified Output
+
+After applying the systemd override, `ssh.service` correctly binds to both the Tailscale IP and the local network IP on startup:
+
+```
+root@taskmanager:/# systemctl restart ssh
+
+root@taskmanager:/# systemctl status ssh
+
+● ssh.service - OpenBSD Secure Shell server
+
+     Loaded: loaded (/usr/lib/systemd/system/ssh.service; enabled; preset: enabled)
+     Active: active (running) since Fri 2026-05-08 19:19:12 UTC; 2s ago
+       Docs: man:sshd(8)
+             man:sshd_config(5)
+    Process: ExecStartPre=/usr/sbin/sshd -t (code=exited, status=0/SUCCESS)
+   Main PID: (sshd)
+      Tasks: 1 (limit: 14118)
+     Memory: 1.7M (peak: 2.0M)
+        CPU: 26ms
+     CGroup: /system.slice/ssh.service
+             └─ "sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups"
+
+May 08 19:19:12 taskmanager systemd[1]: Starting ssh.service - OpenBSD Secure Shell server...
+May 08 19:19:12 taskmanager sshd: Server listening on <tailscale-ip> port 22.
+May 08 19:19:12 taskmanager sshd: Server listening on <local-ip> port 22.
+May 08 19:19:12 taskmanager systemd[1]: Started ssh.service - OpenBSD Secure Shell server.
+```
+
+The key lines are the two `Server listening on` entries — one for the Tailscale IP and one for the LAN IP. Before the fix, only the LAN IP appeared (or `sshd` failed to start entirely).
+
+---
+
 ## Tested On
 
 - Ubuntu 22.04 / 24.04
